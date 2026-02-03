@@ -3,6 +3,7 @@ import { Citation } from './Citation';
 import { User, Bot, Copy, Check } from 'lucide-react';
 import { useState } from 'react';
 import { motion } from 'framer-motion';
+import { useChat } from '../context/ChatContext';
 
 interface ChatMessageProps {
   message: Message;
@@ -11,6 +12,7 @@ interface ChatMessageProps {
 export const ChatMessage = ({ message }: ChatMessageProps) => {
   const isUser = message.role === 'user';
   const [copied, setCopied] = useState(false);
+  const { openDocumentViewer } = useChat();
 
   const handleCopy = async () => {
     try {
@@ -20,6 +22,43 @@ export const ChatMessage = ({ message }: ChatMessageProps) => {
     } catch (err) {
       console.error('Failed to copy:', err);
     }
+  };
+
+  // Render message content with inline clickable citation markers
+  const renderMessageWithCitations = () => {
+    if (isUser || !message.citations || message.citations.length === 0) {
+      return <p className="whitespace-pre-wrap break-words leading-relaxed text-[15px] pr-10">{message.content}</p>;
+    }
+
+    // Append clickable citation markers at the end of the content
+    // Citations appear both inline (as [1], [2], [3]) and as detailed buttons below
+    return (
+      <div className="pr-10">
+        <p className="whitespace-pre-wrap break-words leading-relaxed text-[15px]">
+          {message.content}
+          {message.citations.length > 0 && (
+            <span className="ml-2 inline-flex gap-1.5 flex-wrap">
+              {message.citations.map((citation, index) => (
+                <motion.button
+                  key={`inline-${citation.id}`}
+                  whileHover={{ scale: 1.15, y: -2 }}
+                  whileTap={{ scale: 0.95 }}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    openDocumentViewer(citation);
+                  }}
+                  className="inline-flex items-center justify-center min-w-[1.75rem] h-5 px-1.5 text-xs font-bold text-blue-400 hover:text-blue-300 bg-blue-500/20 hover:bg-blue-500/30 border border-blue-500/40 hover:border-blue-500/60 rounded transition-all duration-200 cursor-pointer shadow-sm hover:shadow-md relative z-10"
+                  title={`Click to view: ${citation.documentTitle} (Page ${citation.pageNumber})`}
+                  aria-label={`View citation ${index + 1}: ${citation.documentTitle} page ${citation.pageNumber}`}
+                >
+                  [{index + 1}]
+                </motion.button>
+              ))}
+            </span>
+          )}
+        </p>
+      </div>
+    );
   };
 
   return (
@@ -53,7 +92,7 @@ export const ChatMessage = ({ message }: ChatMessageProps) => {
               : 'bg-slate-800/90 text-slate-100 border border-slate-700/50 shadow-slate-900/50'
           }`}
         >
-          <p className="whitespace-pre-wrap break-words leading-relaxed text-[15px] pr-10">{message.content}</p>
+          {renderMessageWithCitations()}
           
           {/* Copy Button */}
           <motion.button
@@ -81,11 +120,16 @@ export const ChatMessage = ({ message }: ChatMessageProps) => {
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.2 }}
-            className="mt-4 flex flex-wrap gap-2 sm:gap-3 w-full overflow-hidden"
+            className="mt-4 flex flex-col gap-2 w-full"
           >
-            {message.citations.map((citation, index) => (
-              <Citation key={citation.id} citation={citation} index={index} />
-            ))}
+            <div className="text-xs text-slate-400 font-medium mb-1 px-1">
+              Sources:
+            </div>
+            <div className="flex flex-wrap gap-2 sm:gap-3 w-full overflow-hidden">
+              {message.citations.map((citation, index) => (
+                <Citation key={citation.id} citation={citation} index={index} />
+              ))}
+            </div>
           </motion.div>
         )}
 

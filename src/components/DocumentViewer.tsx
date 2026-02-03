@@ -1,8 +1,9 @@
 import { useChat } from '../context/ChatContext';
-import { X, FileText, ChevronLeft, ChevronRight, Download } from 'lucide-react';
+import { X, FileText, ChevronLeft, ChevronRight, Download, FileDown } from 'lucide-react';
 import { mockApiService } from '../services/mockApi';
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { jsPDF } from 'jspdf';
 
 export const DocumentViewer = () => {
   const { selectedCitation, isDocumentViewerOpen, closeDocumentViewer, messages } = useChat();
@@ -123,6 +124,90 @@ Date: ${new Date().toLocaleString()}
     URL.revokeObjectURL(url);
   };
 
+  const handleDownloadPDF = () => {
+    // Use currentCitationIndex to get the current citation
+    const currentCitation = availableCitations.length > 0 
+      ? availableCitations[currentCitationIndex] || availableCitations[0]
+      : selectedCitation;
+
+    if (!currentCitation || !documentContent) return;
+
+    // Create PDF document
+    const pdf = new jsPDF();
+    const pageWidth = pdf.internal.pageSize.getWidth();
+    const margin = 20;
+    const maxWidth = pageWidth - (margin * 2);
+    let yPosition = margin;
+
+    // Helper function to add text with word wrapping
+    const addText = (text: string, fontSize: number, isBold: boolean = false, spacing: number = 7) => {
+      pdf.setFontSize(fontSize);
+      if (isBold) {
+        pdf.setFont('helvetica', 'bold');
+      } else {
+        pdf.setFont('helvetica', 'normal');
+      }
+      
+      const lines = pdf.splitTextToSize(text, maxWidth);
+      lines.forEach((line: string) => {
+        if (yPosition > pdf.internal.pageSize.getHeight() - margin) {
+          pdf.addPage();
+          yPosition = margin;
+        }
+        pdf.text(line, margin, yPosition);
+        yPosition += spacing;
+      });
+    };
+
+    // Add title
+    addText(currentCitation.documentTitle, 16, true, 10);
+    yPosition += 5;
+
+    // Add page number
+    addText(`Page ${currentCitation.pageNumber}`, 12, false, 8);
+    yPosition += 10;
+
+    // Add separator
+    pdf.setDrawColor(200, 200, 200);
+    pdf.line(margin, yPosition, pageWidth - margin, yPosition);
+    yPosition += 10;
+
+    // Add referenced snippet section
+    addText('REFERENCED SNIPPET:', 12, true, 8);
+    yPosition += 3;
+    addText(currentCitation.snippet, 10, false, 6);
+    yPosition += 10;
+
+    // Add separator
+    pdf.line(margin, yPosition, pageWidth - margin, yPosition);
+    yPosition += 10;
+
+    // Add full content section
+    addText('FULL CONTENT:', 12, true, 8);
+    yPosition += 3;
+    addText(documentContent, 10, false, 6);
+    yPosition += 10;
+
+    // Add footer
+    pdf.setFontSize(8);
+    pdf.setFont('helvetica', 'italic');
+    pdf.setTextColor(128, 128, 128);
+    const footerText = `Downloaded from RAG Chatbot - ${new Date().toLocaleString()}`;
+    const footerLines = pdf.splitTextToSize(footerText, maxWidth);
+    footerLines.forEach((line: string) => {
+      if (yPosition > pdf.internal.pageSize.getHeight() - margin) {
+        pdf.addPage();
+        yPosition = margin;
+      }
+      pdf.text(line, margin, yPosition);
+      yPosition += 5;
+    });
+
+    // Download PDF
+    const fileName = `${currentCitation.documentTitle.replace(/\s+/g, '_')}_Page_${currentCitation.pageNumber}.pdf`;
+    pdf.save(fileName);
+  };
+
   if (!isDocumentViewerOpen || !selectedCitation) return null;
 
   // Use currentCitationIndex to get the current citation
@@ -171,17 +256,32 @@ Date: ${new Date().toLocaleString()}
               </div>
             </div>
             <div className="flex items-center gap-2">
-              <motion.button
-                whileHover={{ scale: 1.1 }}
-                whileTap={{ scale: 0.9 }}
-                onClick={handleDownload}
-                disabled={!documentContent || loading}
-                className="p-2.5 hover:bg-blue-500/20 rounded-xl transition-colors disabled:opacity-40 disabled:cursor-not-allowed group"
-                aria-label="Download document"
-                title={loading ? "Loading document..." : documentContent ? "Download document (PDF)" : "Document not available"}
-              >
-                <Download className="w-5 h-5 text-blue-400 group-hover:text-blue-300" />
-              </motion.button>
+              <div className="flex items-center gap-1.5">
+                <motion.button
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                  onClick={handleDownload}
+                  disabled={!documentContent || loading}
+                  className="px-3 py-2 text-xs font-medium text-blue-300 bg-blue-500/10 hover:bg-blue-500/20 border border-blue-500/30 rounded-lg transition-all disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1.5"
+                  aria-label="Download as text"
+                  title={loading ? "Loading document..." : documentContent ? "Download as TXT" : "Document not available"}
+                >
+                  <Download className="w-4 h-4" />
+                  <span className="hidden sm:inline">TXT</span>
+                </motion.button>
+                <motion.button
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                  onClick={handleDownloadPDF}
+                  disabled={!documentContent || loading}
+                  className="px-3 py-2 text-xs font-medium text-purple-300 bg-purple-500/10 hover:bg-purple-500/20 border border-purple-500/30 rounded-lg transition-all disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1.5"
+                  aria-label="Download as PDF"
+                  title={loading ? "Loading document..." : documentContent ? "Download as PDF" : "Document not available"}
+                >
+                  <FileDown className="w-4 h-4" />
+                  <span className="hidden sm:inline">PDF</span>
+                </motion.button>
+              </div>
               <motion.button
                 whileHover={{ scale: 1.1, rotate: 90 }}
                 whileTap={{ scale: 0.9 }}
